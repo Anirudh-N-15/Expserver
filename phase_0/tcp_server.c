@@ -20,7 +20,6 @@ void reverseString(char * str) {
     }
 }
 
-
 int main() {
     int listen_sock_fd = socket(AF_INET, SOCK_STREAM, 0);
 
