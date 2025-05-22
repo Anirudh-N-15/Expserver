@@ -43,7 +43,7 @@ int main() {
         read_n = recv(client_sock_fd,buff,sizeof(buff),0);
 
         if(read_n <= 0 ) {
-             printf("[INFO] Error occured. Closing server\n");
+            printf("[INFO] Error occured. Closing server\n");
             close(client_sock_fd);
             exit(1);
         } else {

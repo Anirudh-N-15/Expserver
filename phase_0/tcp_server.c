@@ -47,30 +47,36 @@ int main() {
     struct sockaddr_in client_addr;
     socklen_t client_addr_len;
 
-    // Accept client connection
-    int conn_sock_fd = accept(listen_sock_fd, (struct sockaddr *)&client_addr, &client_addr_len);
-    printf("[INFO] Client connected to server\n");
-
     while(1) {
-        //Created buffer to be able to store message from client
-        char buff[BUFF_SIZE];
-        memset(buff,0,BUFF_SIZE);
+        // Accept client connection
+        int conn_sock_fd = accept(listen_sock_fd, (struct sockaddr *)&client_addr, &client_addr_len);
 
-        //Read message from client to buffer 
-        ssize_t read_n = recv(conn_sock_fd,buff,sizeof(buff),0);
+        if(conn_sock_fd < 0) {
+            perror("[ERROR] Accept failed");
+            continue;
+        } else {
+            printf("[INFO] Client connected to server\n");
+        }    
 
-        if(read_n <= 0) { //-1 indicates some err has occurred while 0 indicates client closed the connection
-            printf("[INFO] Error occured. Closing server\n");
-            close(conn_sock_fd);
-            exit(1);            
+        while(1) {
+            //Created buffer to be able to store message from client
+            char buff[BUFF_SIZE];
+            memset(buff,0,BUFF_SIZE);
+
+            //Read message from client to buffer 
+            ssize_t read_n = recv(conn_sock_fd,buff,sizeof(buff),0);
+
+            if(read_n <= 0) { //-1 indicates some err has occurred while 0 indicates client closed the connection
+                printf("[INFO] Client Disconnected. Closing server\n");
+                close(conn_sock_fd);
+                break;            //To break after client has disconnected.
+            }
+
+            printf("[CLIENT MESSAGE] %s\n", buff);
+            reverseString(buff);
+            send(conn_sock_fd,buff,read_n,0);
         }
-
-        printf("[CLIENT MESSAGE] %s\n", buff);
-
-        reverseString(buff);
-
-        send(conn_sock_fd,buff,read_n,0);
     }
-
-
+    close(listen_sock_fd);
+    return 0;
 }
