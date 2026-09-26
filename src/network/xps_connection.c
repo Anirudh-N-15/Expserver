@@ -85,7 +85,7 @@ void xps_connection_read_handler(xps_connection_t *connection) {
   }
 
   if (read_n == 0) {
-    logger(LOG_INFO, "connection_read_handler()", "peer closed connection");
+    logger(LOG_INFO, "xps_connection_read_handler()", "peer closed connection");
     xps_connection_destroy(connection);
     return;
   }
