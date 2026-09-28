@@ -12,5 +12,6 @@ struct xps_connection_s {
 
 xps_connection_t *xps_connection_create(xps_core_t *core, u_int sock_fd);
 void xps_connection_destroy(xps_connection_t *connection);
+void connection_loop_read_handler(void *ptr);
 
 #endif

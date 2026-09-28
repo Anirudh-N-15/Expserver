@@ -1,5 +1,51 @@
 #include "xps_loop.h"
+#include <errno.h>
 #include <fcntl.h>
+
+void xps_loop_run(xps_loop_t *loop) {
+	/* Validate params */
+	assert(loop != NULL);
+
+    while (1) {
+      logger(LOG_DEBUG, "xps_loop_run()", "epoll wait");
+      int n_events = epoll_wait(loop->epoll_fd,loop->epoll_events, MAX_EPOLL_EVENTS, -1);
+      logger(LOG_DEBUG, "xps_loop_run()", "epoll wait over");
+
+      logger(LOG_DEBUG, "xps_loop_run()", "handling %d events", n_events);
+
+      // Handle events
+      for (int i = 0; i < n_events; i++) {
+        logger(LOG_DEBUG, "xps_loop_run()", "handling event no. %d", i + 1);
+
+        struct epoll_event curr_epoll_event = loop->epoll_events[i];
+        loop_event_t *curr_event = curr_epoll_event.data.ptr;
+
+        // Check if event still exists. Could have been destroyed due to prev event
+        int curr_event_idx = -1;
+		for(int i = 0; i < loop->events.length; i++) {
+			if(loop->events.data[i] == curr_event) {
+				curr_event_idx = i;
+				break;
+			}
+		}
+
+        // 🟡 Above can be optimized using an RB tree
+        if (curr_event_idx == -1) {
+          logger(LOG_DEBUG, "handle_epoll_events()", "event not found. skipping");
+          continue;
+        }
+
+        // Read event
+        if (curr_epoll_event.events & EPOLLIN) {
+          logger(LOG_DEBUG, "handle_epoll_events()", "EVENT / read");
+          if (curr_event->read_cb != NULL)
+            // Pass the ptr from loop_event_t as a parameter to the callback
+            curr_event->read_cb(curr_event->ptr);
+        }
+      }
+    }
+}
+
 
 /**
  * Creates a new event loop instance associated with the given core.

@@ -44,7 +44,7 @@ void xps_core_destroy(xps_core_t *core) {
     }
     vec_deinit(&(core->listeners));
 
-    xps_loops_destroy(core->loop);
+    xps_loop_destroy(core->loop);
     free(core);
 
     logger(LOG_DEBUG, "xps_core_destroy()", "destroyed core");
@@ -60,7 +60,7 @@ void xps_core_start(xps_core_t *core) {
         logger(LOG_INFO, "xps_core_start()", "Server listening on port %d", i);
     }
 
-    xps_loop_run(core->loop->epoll_fd);
+    xps_loop_run(core->loop);
 
-    logger(LOG_INFO, "xps_core_start()", "stopping core");
+    //logger(LOG_INFO, "xps_core_start()", "stopping core");
 }

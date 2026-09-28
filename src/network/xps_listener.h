@@ -12,6 +12,6 @@ struct xps_listener_s {
 
 xps_listener_t *xps_listener_create(xps_core_t *core, const char *host, u_int port);
 void xps_listener_destroy(xps_listener_t *listener);
-
+void listener_connection_handler(void *ptr);
 
 #endif
