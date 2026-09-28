@@ -55,7 +55,7 @@ void xps_core_start(xps_core_t *core) {
 
     logger(LOG_INFO, "xps_core_start()", "starting core");
 
-    for(int i = 8001; i <= 8003; i++) {
+    for(int i = 8001; i <= 8004; i++) {
         xps_listener_t * listener = xps_listener_create(core,"0.0.0.0",i);
         logger(LOG_INFO, "xps_core_start()", "Server listening on port %d", i);
     }
