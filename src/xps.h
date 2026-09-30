@@ -12,6 +12,9 @@
 #include <sys/socket.h>
 #include <unistd.h>
 #include <signal.h>
+#include <string.h>
+#include <fcntl.h>
+#include <errno.h>
 
 // 3rd party libraries
 #include "lib/vec/vec.h" // https://github.com/rxi/vec
@@ -52,11 +55,12 @@ typedef struct xps_connection_s xps_connection_t;
 typedef void (*xps_handler_t)(void *ptr);
 
 // xps headers
+#include "utils/xps_buffer.h"
+#include "utils/xps_logger.h"
+#include "utils/xps_utils.h"
 #include "core/xps_core.h"
 #include "core/xps_loop.h"
 #include "network/xps_connection.h"
 #include "network/xps_listener.h"
-#include "utils/xps_logger.h"
-#include "utils/xps_utils.h"
 
 #endif

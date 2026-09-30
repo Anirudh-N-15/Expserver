@@ -3,6 +3,8 @@
 #include "../xps.h"
 
 void connection_loop_read_handler(void *ptr);
+void connection_loop_write_handler(void *ptr);
+void connection_loop_close_handler(void *ptr);
 
 xps_connection_t *xps_connection_create(xps_core_t *core, u_int sock_fd) {
 
@@ -13,13 +15,14 @@ xps_connection_t *xps_connection_create(xps_core_t *core, u_int sock_fd) {
   }
 
   /* attach sock_fd to epoll */
-  xps_loop_attach(core->loop, sock_fd, EPOLLIN, connection, connection_loop_read_handler);
+  xps_loop_attach(core->loop, sock_fd, EPOLLIN | EPOLLOUT, connection, connection_loop_read_handler, connection_loop_write_handler, connection_loop_close_handler);
 
   // Init values
   connection->core = core;
   connection->sock_fd = sock_fd;
   connection->listener = NULL;
   connection->remote_ip = get_remote_ip(sock_fd);
+  connection->write_buff_list = xps_buffer_list_create();
 
   /* add connection to 'connections' list */
   vec_push(&core->connections, connection);
@@ -84,14 +87,14 @@ void connection_loop_read_handler(void *ptr) {
 
 
   if (read_n < 0) {
-    logger(LOG_ERROR, "xps_connection_read_handler()", "recv() failed");
+    logger(LOG_ERROR, "connection_loop_read_handler()", "recv() failed");
     perror("Error message");
     xps_connection_destroy(connection);
     return;
   }
 
   if (read_n == 0) {
-    logger(LOG_INFO, "xps_connection_read_handler()", "peer closed connection");
+    logger(LOG_INFO, "connection_loop_read_handler()", "peer closed connection");
     xps_connection_destroy(connection);
     return;
   }
@@ -104,18 +107,61 @@ void connection_loop_read_handler(void *ptr) {
   /* reverse client message */
   reverse_string(buff);
 
-  // Sending reversed message to client
-  long bytes_written = 0;
-  long message_len = read_n;
-  while (bytes_written < message_len) {
-    long write_n = send(connection->sock_fd, buff + bytes_written, message_len - bytes_written, 0);
-    if (write_n < 0) {
-      logger(LOG_ERROR, "xps_connection_read_handler()", "send() failed");
-      perror("Error message");
-      xps_connection_destroy(connection);
-      return;
-    }
-    bytes_written += write_n;
+  // create a buffer to hold the reversed message
+  xps_buffer_t *write_buff = xps_buffer_create(read_n, read_n, NULL);
+  memcpy(write_buff->data, buff, read_n);
+  xps_buffer_list_append(connection->write_buff_list, write_buff);
+}
+
+void connection_loop_write_handler(void *ptr) {
+  /* validate params */
+  assert(ptr != NULL);
+  xps_connection_t *connection = (xps_connection_t *)ptr;
+
+  if(!connection->write_buff_list || connection->write_buff_list->len == 0) {
+    logger(LOG_DEBUG, "connection_loop_write_handler()", "no data to write for connection: %p", connection);
+    return;
   }
 
+  xps_buffer_t *buffer = xps_buffer_list_read(connection->write_buff_list, connection->write_buff_list->len);
+
+  if(buffer == NULL) {
+    logger(LOG_ERROR, "connection_loop_write_handler()", "xps_buffer_list_read() failed");
+    xps_connection_destroy(connection);
+    return;
+  }
+
+
+  // Sending reversed message to client
+  long bytes_written = 0;
+  long message_len = buffer->len;
+  while (bytes_written < message_len) {
+    long write_n = send(connection->sock_fd, buffer->data + bytes_written, message_len - bytes_written, 0);
+    if (write_n < 0) {
+       if(errno == EAGAIN || errno == EWOULDBLOCK) {
+                logger(LOG_DEBUG, "connection_loop_write_handler()", "send() would block, try again later");
+                xps_buffer_destroy(buffer);
+                return;
+        }
+
+        logger(LOG_ERROR, "connection_loop_write_handler()", "send() failed");
+        perror("Error message");
+        xps_connection_destroy(connection);
+        xps_buffer_destroy(buffer);
+        return;
+    }
+    bytes_written += write_n;
+    xps_buffer_list_clear(connection->write_buff_list, write_n);
+  }
+  xps_buffer_destroy(buffer);
+}
+
+void connection_loop_close_handler(void *ptr) {
+  /* validate params */
+  assert(ptr != NULL);
+  xps_connection_t *connection = (xps_connection_t *)ptr;
+
+  logger(LOG_INFO, "connection_loop_close_handler()", "closing connection: %p", connection);
+
+  xps_connection_destroy(connection);
 }

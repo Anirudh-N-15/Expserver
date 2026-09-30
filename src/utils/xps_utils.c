@@ -56,3 +56,20 @@ struct addrinfo *xps_getaddrinfo(const char *host, u_int port) {
   return result;
 }
 
+int make_socket_non_blocking(u_int sock_fd) {
+  int flags = fcntl(sock_fd, F_GETFL, 0);
+  if (flags < 0) {
+    logger(LOG_ERROR, "make_socket_non_blocking()", "failed to get flags");
+    perror("Error message");
+    return E_FAIL;
+  }
+
+  if (fcntl(sock_fd, F_SETFL, flags | O_NONBLOCK) < 0) {
+    logger(LOG_ERROR, "make_socket_non_blocking()", "failed to set flags");
+    perror("Error message");
+    return E_FAIL;
+  }
+
+  return OK;
+}
+

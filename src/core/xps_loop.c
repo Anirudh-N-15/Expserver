@@ -2,6 +2,28 @@
 #include <errno.h>
 #include <fcntl.h>
 
+loop_event_t *loop_event_create(u_int fd, void *ptr, xps_handler_t read_cb, xps_handler_t write_cb, xps_handler_t close_cb) {
+  assert(ptr != NULL);
+
+  // Alloc memory for 'event' instance
+  loop_event_t *event = malloc(sizeof(loop_event_t));
+  if (event == NULL) {
+    logger(LOG_ERROR, "event_create()", "malloc() failed for 'event'");
+    return NULL;
+  }
+
+  /* set fd, ptr, and callback fields of event */
+    event->fd = fd;
+    event->ptr = ptr;
+    event->read_cb = read_cb;
+    event->write_cb = write_cb;
+    event->close_cb = close_cb;
+
+  logger(LOG_DEBUG, "event_create()", "created event");
+
+  return event;
+}
+
 void xps_loop_run(xps_loop_t *loop) {
 	/* Validate params */
 	assert(loop != NULL);
@@ -35,6 +57,14 @@ void xps_loop_run(xps_loop_t *loop) {
           continue;
         }
 
+        // Close Event
+        if(curr_epoll_event.events & (EPOLLERR | EPOLLHUP)) {
+          logger(LOG_DEBUG, "handle_epoll_events()", "EVENT / close");
+          if (curr_event->close_cb != NULL) {
+            curr_event->close_cb(curr_event->ptr);
+          }
+        }
+
         // Read event
         if (curr_epoll_event.events & EPOLLIN) {
           logger(LOG_DEBUG, "handle_epoll_events()", "EVENT / read");
@@ -42,6 +72,15 @@ void xps_loop_run(xps_loop_t *loop) {
             // Pass the ptr from loop_event_t as a parameter to the callback
             curr_event->read_cb(curr_event->ptr);
         }
+
+        // Write event
+        if(curr_epoll_event.events & EPOLLOUT) {
+          logger(LOG_DEBUG, "handle_epoll_events()", "EVENT / write");
+          if (curr_event->write_cb != NULL) {
+            curr_event->write_cb(curr_event->ptr);
+          }
+        }
+
       }
     }
 }
@@ -129,9 +168,11 @@ void xps_loop_destroy(xps_loop_t *loop) {
  * @param event_flags : epoll event flags
  * @param ptr : Pointer to instance of xps_listener_t or xps_connection_t
  * @param read_cb : Callback function to be called on a read event
+ * @param write_cb : Callback function to be called on a write event
+ * @param close_cb : Callback function to be called on a close event
  * @return : OK on success and E_FAIL on error
  */
-int xps_loop_attach(xps_loop_t *loop, u_int fd, int event_flags, void *ptr, xps_handler_t read_cb) {
+int xps_loop_attach(xps_loop_t *loop, u_int fd, int event_flags, void *ptr, xps_handler_t read_cb, xps_handler_t write_cb, xps_handler_t close_cb) {
   assert(loop != NULL);
   assert(ptr != NULL);
 
@@ -143,7 +184,7 @@ int xps_loop_attach(xps_loop_t *loop, u_int fd, int event_flags, void *ptr, xps_
     return E_FAIL;
   }
 
-  loop_event_t *event = loop_event_create(fd, ptr, read_cb);
+  loop_event_t *event = loop_event_create(fd, ptr, read_cb, write_cb, close_cb);
 
   if(event == NULL) {
     logger(LOG_ERROR, "xps_loop_attach()", "loop_event_create() failed for fd: %d", fd);
@@ -204,27 +245,6 @@ int xps_loop_detach(xps_loop_t *loop, u_int fd) {
   }
 
   return E_FAIL; ;
-}
-
-
-loop_event_t *loop_event_create(u_int fd, void *ptr, xps_handler_t read_cb) {
-  assert(ptr != NULL);
-
-  // Alloc memory for 'event' instance
-  loop_event_t *event = malloc(sizeof(loop_event_t));
-  if (event == NULL) {
-    logger(LOG_ERROR, "event_create()", "malloc() failed for 'event'");
-    return NULL;
-  }
-
-  /* set fd, ptr, read_cb fields of event */
-    event->fd = fd;
-    event->ptr = ptr;
-    event->read_cb = read_cb;
-
-  logger(LOG_DEBUG, "event_create()", "created event");
-
-  return event;
 }
 
 void loop_event_destroy(loop_event_t *event) {
