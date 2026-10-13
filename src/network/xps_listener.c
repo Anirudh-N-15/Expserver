@@ -109,25 +109,43 @@ void listener_connection_handler(void *ptr) {
   assert(ptr != NULL);
   xps_listener_t *listener = (xps_listener_t *)ptr;
 
-  struct sockaddr conn_addr;
-  socklen_t conn_addr_len = sizeof(conn_addr);
+  while(1) {
+    struct sockaddr conn_addr;
+    socklen_t conn_addr_len = sizeof(conn_addr);
 
-  // Accepting connection
-  int conn_sock_fd = accept(listener->sock_fd, &conn_addr, &conn_addr_len);
-  if (conn_sock_fd < 0) {
-    logger(LOG_ERROR, "xps_listener_connection_handler()", "accept() failed");
-    perror("Error message");
-    return;
-  }
+    // Accepting connection
+    int conn_sock_fd = accept(listener->sock_fd, &conn_addr, &conn_addr_len);
+    if (conn_sock_fd < 0) {
+      logger(LOG_ERROR, "xps_listener_connection_handler()", "accept() failed");
+      perror("Error message");
+      return;
+    }
 
-  // Creating connection instance
-  xps_connection_t *client = xps_connection_create(listener->core, conn_sock_fd); // Will be implemented later
-  if (client == NULL) {
-    logger(LOG_ERROR, "xps_listener_connection_handler()", "xps_connection_create() failed");
-    close(conn_sock_fd);
-    return;
-  }
-  client->listener = listener;
+    if(conn_sock_fd < 0) {
+      if(errno == EAGAIN || errno == EWOULDBLOCK) {
+        
+        break;
+      }
+      logger(LOG_ERROR, "xps_listener_connection_handler()", "accept() failed");
+      perror("Error message");  
+      return ;
+    }
 
-  logger(LOG_INFO, "xps_listener_connection_handler()", "new connection");
+    if(make_socket_non_blocking(conn_sock_fd) != OK) {
+      logger(LOG_ERROR, "make_socket_non_blocking()", "make_socket_nonblocking() failed");
+      close(conn_sock_fd);
+      return;
+    }
+    
+    // Creating connection instance
+    xps_connection_t *client = xps_connection_create(listener->core, conn_sock_fd); // Will be implemented later
+    if (client == NULL) {
+      logger(LOG_ERROR, "xps_listener_connection_handler()", "xps_connection_create() failed");
+      close(conn_sock_fd);
+      return;
+    }
+    client->listener = listener;
+
+    logger(LOG_INFO, "xps_listener_connection_handler()", "new connection");
+  }  
 }
