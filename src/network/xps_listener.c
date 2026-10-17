@@ -116,14 +116,7 @@ void listener_connection_handler(void *ptr) {
     // Accepting connection
     int conn_sock_fd = accept(listener->sock_fd, &conn_addr, &conn_addr_len);
     if (conn_sock_fd < 0) {
-      logger(LOG_ERROR, "xps_listener_connection_handler()", "accept() failed");
-      perror("Error message");
-      return;
-    }
-
-    if(conn_sock_fd < 0) {
       if(errno == EAGAIN || errno == EWOULDBLOCK) {
-        
         break;
       }
       logger(LOG_ERROR, "xps_listener_connection_handler()", "accept() failed");
@@ -145,6 +138,13 @@ void listener_connection_handler(void *ptr) {
       return;
     }
     client->listener = listener;
+
+    // Create the pipe for the connection.
+    if (xps_pipe_create(listener->core, DEFAULT_PIPE_BUFF_THRESH, client->source, client->sink) == NULL) {
+      logger(LOG_ERROR, "xps_listener_connection_handler()", "xps_pipe_create() failed");
+      xps_connection_destroy(client);
+      return;
+    }
 
     logger(LOG_INFO, "xps_listener_connection_handler()", "new connection");
   }  

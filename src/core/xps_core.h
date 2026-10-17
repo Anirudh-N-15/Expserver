@@ -5,8 +5,10 @@
 
 struct xps_core_s {
   xps_loop_t *loop;
+  vec_void_t pipes;
   vec_void_t listeners;
   vec_void_t connections;
+  u_int n_null_pipes;
   u_int n_null_listeners;
   u_int n_null_connections;
 };

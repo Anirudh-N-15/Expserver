@@ -28,6 +28,8 @@ int xps_loop_detach(xps_loop_t *loop, u_int fd);
 void xps_loop_run(xps_loop_t *loop);
 void loop_event_destroy(loop_event_t *event);
 
-bool handle_connections(xps_loop_t *loop);
+void handle_epoll_events(xps_loop_t *loop, int n_events);
+bool handle_pipes(xps_loop_t *loop);
+void filter_nulls(xps_core_t *core);
 
 #endif
