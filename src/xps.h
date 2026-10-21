@@ -70,5 +70,6 @@ typedef void (*xps_handler_t)(void *ptr);
 #include "core/xps_pipe.h"
 #include "network/xps_connection.h"
 #include "network/xps_listener.h"
+#include "network/xps_upstream.h"
 
 #endif

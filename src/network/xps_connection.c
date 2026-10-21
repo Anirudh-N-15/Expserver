@@ -236,11 +236,12 @@ void connection_sink_handler(void *ptr) {
 
 void connection_sink_close_handler(void *ptr) {
     /*assert*/
-    xps_pipe_sink_t *sink = ptr;
+    xps_pipe_sink_t *sink = (xps_pipe_sink_t *)ptr;
     xps_connection_t *connection = sink->ptr;
 
-    if (sink->pipe->source->active == false && sink->active == false)
-		connection_close(connection, false);
+     if (!sink->active && (sink->pipe->source == NULL || !sink->pipe->source->active)) {
+        connection_close(connection, false);
+    }
 }
 
 void connection_close(xps_connection_t *connection, bool peer_closed) {
