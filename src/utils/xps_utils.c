@@ -73,3 +73,8 @@ int make_socket_non_blocking(u_int sock_fd) {
   return OK;
 }
 
+const char *get_file_ext(const char *file_path) {
+  const char *dot = strrchr(file_path, '.');
+  if (!dot || dot == file_path) return NULL;
+  return dot;
+}

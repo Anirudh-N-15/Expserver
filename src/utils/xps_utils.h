@@ -21,5 +21,7 @@ struct addrinfo {
 };
 
 // Other functions
+const char *get_file_ext(const char *file_path);
+
 
 #endif

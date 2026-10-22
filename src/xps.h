@@ -15,6 +15,7 @@
 #include <string.h>
 #include <fcntl.h>
 #include <errno.h>
+#include <sys/stat.h>
 
 // 3rd party libraries
 #include "lib/vec/vec.h" // https://github.com/rxi/vec
@@ -48,6 +49,7 @@ struct xps_connection_s;
 struct xps_pipe_s;
 struct xps_pipe_source_s;
 struct xps_pipe_sink_s;
+struct xps_keyval_s;
 
 // Struct typedefs
 typedef struct xps_core_s xps_core_t;
@@ -57,6 +59,7 @@ typedef struct xps_connection_s xps_connection_t;
 typedef struct xps_pipe_s xps_pipe_t;
 typedef struct xps_pipe_source_s xps_pipe_source_t;
 typedef struct xps_pipe_sink_s xps_pipe_sink_t;
+typedef struct xps_file_s xps_file_t;
 
 // Function typedefs
 typedef void (*xps_handler_t)(void *ptr);
@@ -71,5 +74,7 @@ typedef void (*xps_handler_t)(void *ptr);
 #include "network/xps_connection.h"
 #include "network/xps_listener.h"
 #include "network/xps_upstream.h"
+#include "disk/xps_file.h"
+#include "disk/xps_mime.h"
 
 #endif
