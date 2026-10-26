@@ -67,6 +67,14 @@ void xps_connection_destroy(xps_connection_t *connection) {
 
   xps_core_t *core = connection->core;
 
+  for (int i = 0; i < core->sessions.length; i++) {
+    xps_session_t *session = core->sessions.data[i];
+    if (session != NULL && session->client == connection) {
+      xps_session_destroy(session);
+      break;
+    }
+  }
+
 	/* set connection to NULL in 'connections' list */
 	for (int i = 0; i < core->connections.length; i++) {
 		xps_connection_t *curr = core->connections.data[i];
@@ -189,7 +197,12 @@ void connection_source_close_handler(void *ptr) {
     xps_pipe_source_t *source = ptr;
     xps_connection_t *connection = source->ptr;
 
-    if (source->active == false && source->pipe->sink->active == false ) {
+    if (source->pipe == NULL) {
+        return;
+    }
+
+    if (source->active == false &&
+        (source->pipe->sink == NULL || source->pipe->sink->active == false)) {
 		/*close connection*/
 		connection_close(connection, false);
 	}
@@ -239,7 +252,8 @@ void connection_sink_close_handler(void *ptr) {
     xps_pipe_sink_t *sink = (xps_pipe_sink_t *)ptr;
     xps_connection_t *connection = sink->ptr;
 
-     if (!sink->active && (sink->pipe->source == NULL || !sink->pipe->source->active)) {
+     if (sink->pipe != NULL && !sink->active &&
+         (sink->pipe->source == NULL || !sink->pipe->source->active)) {
         connection_close(connection, false);
     }
 }

@@ -33,12 +33,11 @@ xps_pipe_t *xps_pipe_create(xps_core_t *core, size_t buff_thresh, xps_pipe_sourc
     vec_push(&core->pipes, pipe);
 
     /*Attach source and sink to pipe*/
-    /*Make both source and sink of pipe active*/
     xps_pipe_attach_source(pipe, source);
     xps_pipe_attach_sink(pipe, sink);
-
-    pipe->source->ready = true;
-    pipe->sink->ready = true;
+    /*Make both source and sink of pipe active*/
+    pipe->source->active = true;
+    pipe->sink->active = true;
 
     logger(LOG_DEBUG, "xps_pipe_create()", "created pipe");
 
