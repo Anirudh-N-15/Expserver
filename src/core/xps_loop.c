@@ -38,26 +38,26 @@ void xps_loop_run(xps_loop_t *loop) {
     logger(LOG_DEBUG, "xps_loop_run()", "starting to run loop");
 
     while (1) {
-		logger(LOG_DEBUG, "xps_loop_run()", "loop top");
+      logger(LOG_DEBUG, "xps_loop_run()", "loop top");
 
-		// Handle pipes
-		bool has_ready_pipes = handle_pipes(loop);
+      // Handle pipes
+      bool has_ready_pipes = handle_pipes(loop);
 
-		int timeout = has_ready_pipes ? 0 : -1; // If there are ready pipes, don't block
+      int timeout = has_ready_pipes ? 0 : -1; // If there are ready pipes, don't block
 
-		logger(LOG_DEBUG, "xps_loop_run()", "epoll waiting");
-		int n_events = epoll_wait(loop->epoll_fd, loop->epoll_events, MAX_EPOLL_EVENTS, timeout);
-		logger(LOG_DEBUG, "xps_loop_run()", "epoll wait over");
+      logger(LOG_DEBUG, "xps_loop_run()", "epoll waiting");
+      int n_events = epoll_wait(loop->epoll_fd, loop->epoll_events, MAX_EPOLL_EVENTS, timeout);
+      logger(LOG_DEBUG, "xps_loop_run()", "epoll wait over");
 
-		if (n_events < 0)
-			logger(LOG_ERROR, "xps_loop_run()", "epoll_wait() error");
+      if (n_events < 0)
+        logger(LOG_ERROR, "xps_loop_run()", "epoll_wait() error");
 
-		// Handle epoll events
-		if (n_events > 0)
-			handle_epoll_events(loop, n_events);
+      // Handle epoll events
+      if (n_events > 0)
+        handle_epoll_events(loop, n_events);
 
-		// Filter NULLs from vec lists
-		filter_nulls(loop->core);
+      // Filter NULLs from vec lists
+      filter_nulls(loop->core);
     }
 }
 
