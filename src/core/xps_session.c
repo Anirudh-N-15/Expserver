@@ -17,6 +17,7 @@ void set_from_client_buff(xps_session_t *session, xps_buffer_t *buff);
 void session_check_destroy(xps_session_t *session);
 void xps_session_destroy(xps_session_t *session);
 void upstream_error_res(xps_session_t *session);
+void session_process_request(xps_session_t *session);
 
 xps_session_t *xps_session_create(xps_core_t *core, xps_connection_t *client) {
   /* validate parameters */
@@ -68,6 +69,7 @@ xps_session_t *xps_session_create(xps_core_t *core, xps_connection_t *client) {
   session->client_sink->ready = true;
   session->upstream_sink->ready = true;
   session->file_sink->ready = true;
+  session->http_req = NULL;
 
   /*NOTE: We will be adding list of sessions as vec_void_t sessions to xps_core_s in xps_core module below*/
   // Add current session to core->sessions
@@ -106,33 +108,6 @@ xps_session_t *xps_session_create(xps_core_t *core, xps_connection_t *client) {
 
   logger(LOG_DEBUG, "xps_session_create()", "created session");
 
-  if (client->listener->port == 8001) {
-    xps_connection_t *upstream = xps_upstream_create(core, "0.0.0.0", 3000);
-    if (upstream == NULL) {
-      logger(LOG_ERROR, "xps_session_create()", "xps_upstream_create() failed");
-      perror("Error message");
-      xps_session_destroy(session);
-      return NULL;
-    }
-    session->upstream = upstream;
-    xps_pipe_create(core, DEFAULT_PIPE_BUFF_THRESH, upstream->source, session->upstream_sink);
-    xps_pipe_create(core, DEFAULT_PIPE_BUFF_THRESH, session->upstream_source, upstream->sink);
-  }
-
-  else if (client->listener->port == 8002) {
-    int error;
-    xps_file_t *file = xps_file_create(core, "../public/sample.txt", &error);
-    if (file == NULL) {
-      logger(LOG_ERROR, "xps_session_create()", "xps_file_create() failed");
-      perror("Error message");
-      xps_session_destroy(session);
-      return NULL;
-    }
-    /* assign to the file member */
-    session->file = file;
-    xps_pipe_create(core, DEFAULT_PIPE_BUFF_THRESH, file->source, session->file_sink);
-  } 
-
   return session;
 }
 
@@ -165,26 +140,53 @@ void client_source_close_handler(void *ptr) {
 }
 
 void client_sink_handler(void *ptr) {
-  assert(ptr != NULL);
+  	assert(ptr != NULL);
 
-  xps_pipe_sink_t *sink = ptr;
-  xps_session_t *session = sink->ptr;
+ 	xps_pipe_sink_t *sink = ptr;
+  	xps_session_t *session = sink->ptr;
 
-  size_t in_pipe = sink->pipe->buff_list->len;
+  	size_t in_pipe = sink->pipe->buff_list->len;
+  	if (in_pipe == 0) {
+        logger(LOG_DEBUG, "client_sink_handler()", "no data to be read from pipe");
+        return;
+    }
 
-  xps_buffer_t *buff = xps_pipe_sink_read(sink, in_pipe);
-  if (buff == NULL) {
-    logger(LOG_ERROR, "client_sink_handler()", "xps_pipe_sink_read() failed");
-    return;
-  }
+	xps_buffer_t *buff = xps_pipe_sink_read(sink, in_pipe);
+	if (buff == NULL) {
+		logger(LOG_ERROR, "client_sink_handler()", "xps_pipe_sink_read() failed");
+		return;
+	}
 
-  if (session->client->listener->port == 8003 ||
-      session->client->listener->port == 8004) {
-    set_to_client_buff(session, buff);
-  } else {
-    set_from_client_buff(session, buff);
-  }
-  xps_pipe_sink_clear(sink,in_pipe);
+	if (session->http_req == NULL) { //http requset is not recieved till now//
+        int error;
+        // create http_req for the buff read from pipe and destroy the buff
+        xps_http_req_t *http_req = xps_http_req_create(session->core, buff, &error);
+        if (error != OK) {
+            // process the session and return
+            error = HTTP_BAD_REQUEST;
+            logger(LOG_ERROR, "client_sink_handler()", "xps_http_req_create() failed with error code %d", error);
+            session_process_request(session);
+            return;
+        }
+        // handle E_AGAIN
+        if(error == E_AGAIN) {
+            logger(LOG_DEBUG, "client_sink_handler()", "xps_http_req_create() returned E_AGAIN, waiting for more data");
+            return;
+        }
+        session->http_req = http_req;
+        logger(LOG_DEBUG, "client_sink_handler()", "http_req created successfully");
+        // serialize http_req into buffer http_req_buff
+        xps_buffer_t *http_req_buff = xps_http_req_serialize(http_req);
+        // set http_req_buff to from_client_buff and clear the pipe
+        set_from_client_buff(session, http_req_buff);
+        size_t to_clear = sink->pipe->buff_list->len;
+        xps_pipe_sink_clear(sink, to_clear);
+        // process the session
+        session_process_request(session);
+    } else {
+        set_from_client_buff(session, buff);
+        xps_pipe_sink_clear(sink, buff->len);
+    }
 }
 
 void client_sink_close_handler(void *ptr) {
@@ -378,6 +380,9 @@ void xps_session_destroy(xps_session_t *session) {
         xps_buffer_destroy(session->to_client_buff);
     if (session->from_client_buff != NULL)
         xps_buffer_destroy(session->from_client_buff);
+	if(session->http_req != NULL)
+		xps_http_req_destroy(session->core, session->http_req);
+	
 
     // Set NULL in core's list of sessions
     /* fill this */
@@ -392,4 +397,64 @@ void xps_session_destroy(xps_session_t *session) {
     free(session);
 
     logger(LOG_DEBUG, "xps_session_destroy()", "destroyed session");
+}
+
+void session_process_request(xps_session_t *session) {
+	assert(session != NULL);
+	/*allocate a reply buffer that will store response*/
+	char *reply = (char *)malloc(DEFAULT_BUFFER_SIZE);
+	if(reply == NULL) {
+		logger(LOG_ERROR, "session_process_request()", "malloc() failed for 'reply'");
+		return;
+	}
+	// BAD REQUEST
+	if (session->http_req == NULL) {
+		sprintf(reply, "HTTP/1.1 400 Bad Request\n");
+		xps_buffer_t *buff = xps_buffer_create(strlen(reply), strlen(reply), reply);
+		/*set buff to to_client_buff*/
+		set_to_client_buff(session, buff);
+		return;
+	}
+
+	if (session->http_req->path) {
+		char file_path[DEFAULT_BUFFER_SIZE];
+		strcpy(file_path, "../public");
+		strcat(file_path, session->http_req->path); //the path from http_req is taken as file to be opened
+		int error;
+		/*create file for above path and attach to file field of session*/
+		logger(LOG_DEBUG, "session_process_request()", "file_path=%s", file_path);
+        xps_file_t *file = xps_file_create(session->core, file_path, &error);
+        session->file = file;
+
+		/*handle all possible errors on file creation (E_PERMISSION,E_NOTFOUND,any other)
+		by giving corresponding http response messages*/
+		if(session->file == NULL) {
+            if(error == E_PERMISSION) {
+                sprintf(reply, "HTTP/1.1 403 Forbidden\r\nServer: eXpServer\r\n\r\n");
+            } else if(error == E_NOTFOUND) {
+                sprintf(reply, "HTTP/1.1 404 Not Found\r\nServer: eXpServer\r\n\r\n");
+            } else {
+                sprintf(reply, "HTTP/1.1 500 Internal Server Error\r\nServer: eXpServer\r\n\r\n");
+            }
+            xps_buffer_t *buff = xps_buffer_create(strlen(reply), strlen(reply), reply);
+            /*set buff to to_client_buff*/
+            set_to_client_buff(session, buff);
+            return;
+        }
+
+		if (session->file->mime_type) {
+		sprintf(reply,
+				"HTTP/1.1 200 OK \nServer: eXpServer\nAccess-Control-Allow-Origin: "
+				"*\nContent-Length: %zu\nContent-Type: %s\n\n",
+				session->file->size, session->file->mime_type);
+		}
+		xps_buffer_t *buff = xps_buffer_create(strlen(reply), strlen(reply), reply);
+		/*set buff to to_client_buff*/
+		set_to_client_buff(session, buff);
+		/*create pipe with session->file->source and session->file_sink*/
+		if (xps_pipe_create(session->core, DEFAULT_PIPE_BUFF_THRESH, session->file->source, session->file_sink) == NULL) {
+            logger(LOG_ERROR, "session_process_request()", "xps_pipe_create() failed for file source and file sink");
+            return;
+        }
+	}
 }

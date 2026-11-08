@@ -18,6 +18,7 @@ struct xps_session_s {
   xps_pipe_sink_t *file_sink;
   xps_buffer_t *to_client_buff;
   xps_buffer_t *from_client_buff;
+  xps_http_req_t *http_req;
 };
 
 typedef struct xps_session_s xps_session_t;    

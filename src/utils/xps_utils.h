@@ -22,6 +22,7 @@ struct addrinfo {
 
 // Other functions
 const char *get_file_ext(const char *file_path);
+char *str_from_ptrs(const u_char *start, const u_char *end);
 
 
 #endif
