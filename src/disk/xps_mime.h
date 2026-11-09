@@ -6,10 +6,8 @@
 const char *xps_get_mime(const char *file_path);
 
 struct xps_keyval_s {
-    const char *key;
-    const char *val;
+    char *key;
+    char *val;
 };
-
-typedef struct xps_keyval_s xps_keyval_t;
 
 #endif
