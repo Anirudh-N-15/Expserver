@@ -263,12 +263,9 @@ xps_config_lookup_t *xps_config_lookup(xps_config_t *config, xps_http_req_t *htt
                 }
             }
             if (!index_file_found) {
-                /*no index file so free the resource_path*/
-                *error = E_NOTFOUND ;
-                free(lookup) ;
-                free(resource_path) ;
-                return NULL ;
-            }
+                // If no index file is found, we can serve the directory listing page.
+                lookup->dir_path = resource_path;
+            }   
         } else {
             /*no matching type so free resource_path*/
             *error = E_NOTFOUND ;

@@ -440,7 +440,63 @@ void session_process_request(xps_session_t *session) {
 
 	session->lookup = lookup;
 
-	if(lookup->type == REQ_FILE_SERVE) {
+	if(lookup->type == REQ_FILE_SERVE){
+		if(lookup->dir_path != NULL) {
+			// If dir_path is not NULL, it means we need to serve a directory listing.
+			// We will generate an HTML page for the directory listing and send it as the response.
+			xps_buffer_t *dir_html= xps_directory_browsing(lookup->dir_path, session->http_req->pathname) ;
+
+			// Directory listing generation failed
+            if(dir_html == NULL){
+                http_res = xps_http_res_create(session->core, HTTP_INTERNAL_SERVER_ERROR);
+                if (http_res == NULL) {
+                    logger(LOG_ERROR, "session_process_request()", "xps_http_res_create() failed");
+                    return;
+				}
+                xps_buffer_t *buff = xps_http_res_serialize(http_res);
+                if (buff == NULL) {
+                    logger(LOG_ERROR, "session_process_request()", "xps_http_res_serialize() failed");
+                    xps_http_res_destroy(http_res);
+                    return;
+				}
+                set_to_client_buff(session, buff);
+                xps_http_res_destroy(http_res);
+                return;
+			}
+
+			// create http response with 200 OK and set the body to dir_html
+            http_res = xps_http_res_create(session->core, HTTP_OK);
+            if (http_res == NULL) {
+                logger(LOG_ERROR, "session_process_request()", "xps_http_res_create() failed");
+                xps_buffer_destroy(dir_html);
+                return;
+            }
+
+			xps_http_res_set_body(http_res, dir_html);
+
+            xps_http_set_header(
+                &http_res->headers,
+                "Content-Type",
+                "text/html"
+            );
+
+            // Set Content-Length header
+            char len_str[32];
+            sprintf(len_str, "%zu", dir_html->len);
+            xps_http_set_header(&http_res->headers, "Content-Length", len_str);
+
+            xps_buffer_t *buff = xps_http_res_serialize(http_res);
+            if(buff == NULL) {
+                logger(LOG_ERROR, "session_process_request()", "xps_http_res_serialize() failed");
+                xps_http_res_destroy(http_res);
+                return;
+			}
+
+			set_to_client_buff(session, buff);
+            xps_http_res_destroy(http_res);
+            return;
+		}
+		
 		int error;
         /* create file for above path and attach to file field of session */
         logger(LOG_DEBUG, "session_process_request()", "file_path=%s", lookup->file_path);
@@ -526,7 +582,7 @@ void session_process_request(xps_session_t *session) {
             logger(LOG_ERROR, "session_process_request()", "xps_pipe_create() failed for file source and file sink");
             return;
         }
-	} 
+  	}
 
 	else if(lookup->type == REQ_REVERSE_PROXY) {
         char host[256];

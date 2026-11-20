@@ -161,6 +161,44 @@ void connection_source_handler(void *ptr) {
     xps_buffer_destroy(buff);	
 }
 
+void connection_sink_handler(void *ptr) {
+    /*assert*/
+    xps_pipe_sink_t *sink = ptr;
+    xps_connection_t *connection = sink->ptr;
+
+    xps_buffer_t *buff = xps_pipe_sink_read(sink, sink->pipe->buff_list->len);
+    if (buff == NULL) {
+    	logger(LOG_ERROR, "connection_sink_handler()", "xps_pipe_sink_read() failed");
+    	return;
+    }
+
+    // Write to socket
+    int write_n = send(connection->sock_fd,buff->data, buff->len, MSG_NOSIGNAL);
+
+    /*destroy buff*/
+	xps_buffer_destroy(buff);
+
+    // Socket would block
+    if (write_n < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+    	/*sink made not ready*/
+		sink->ready = false;
+    	return;
+    }
+
+    // Socket error
+    if (write_n < 0) {
+		logger(LOG_ERROR, "connection_sink_handler()", "send() failed");
+		/*close connection*/
+		connection_close(connection, false);
+		return;
+    }
+
+    if (write_n == 0) return;
+
+    if (xps_pipe_sink_clear(sink, write_n) != OK)
+    	logger(LOG_ERROR, "connection_sink_handler()", "failed to clear %d bytes from sink", write_n);
+}
+
 void connection_loop_read_handler(void *ptr) {
 	assert(ptr != NULL);
 	xps_connection_t *connection = (xps_connection_t *)ptr;
@@ -207,44 +245,6 @@ void connection_source_close_handler(void *ptr) {
 		connection_close(connection, false);
 	}
     
-}
-
-void connection_sink_handler(void *ptr) {
-    /*assert*/
-    xps_pipe_sink_t *sink = ptr;
-    xps_connection_t *connection = sink->ptr;
-
-    xps_buffer_t *buff = xps_pipe_sink_read(sink, sink->pipe->buff_list->len);
-    if (buff == NULL) {
-    	logger(LOG_ERROR, "connection_sink_handler()", "xps_pipe_sink_read() failed");
-    	return;
-    }
-
-    // Write to socket
-    int write_n = send(connection->sock_fd,buff->data, buff->len, MSG_NOSIGNAL);
-
-    /*destroy buff*/
-	xps_buffer_destroy(buff);
-
-    // Socket would block
-    if (write_n < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
-    	/*sink made not ready*/
-		sink->ready = false;
-    	return;
-    }
-
-    // Socket error
-    if (write_n < 0) {
-		logger(LOG_ERROR, "connection_sink_handler()", "send() failed");
-		/*close connection*/
-		connection_close(connection, false);
-		return;
-    }
-
-    if (write_n == 0) return;
-
-    if (xps_pipe_sink_clear(sink, write_n) != OK)
-    	logger(LOG_ERROR, "connection_sink_handler()", "failed to clear %d bytes from sink", write_n);
 }
 
 void connection_sink_close_handler(void *ptr) {

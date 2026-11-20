@@ -5,4 +5,4 @@ http/xps_http.c  http/xps_http_req.c http/xps_http_res.c \
 utils/xps_logger.c utils/xps_utils.c utils/xps_cliargs.c \
 config/xps_config.c \
 utils/xps_buffer.c \
-disk/xps_file.c disk/xps_mime.c 
+disk/xps_file.c disk/xps_mime.c disk/xps_directory.c
